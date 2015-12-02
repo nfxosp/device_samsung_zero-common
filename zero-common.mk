@@ -36,6 +36,10 @@ PRODUCT_PACKAGES += \
     libion_exynos \
     memtrack.exynos5
 
+# stlport is needed for Mali
+PRODUCT_PACKAGES += \
+    libstlport
+
 # Media profile
 PRODUCT_COPY_FILES += \
     $(LOCAL_PATH)/configs/media_codecs.xml:system/etc/media_codecs.xml \
