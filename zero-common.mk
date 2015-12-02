@@ -127,8 +127,12 @@ PRODUCT_PACKAGES += \
     init.baseband.rc \
     init.carrier.rc \
     init.gps.rc \
+    init.samsung.rc \
     init.samsungexynos7420.rc \
+    init.samsungexynos7420.gps.rc \
     init.samsungexynos7420.usb.rc \
+    init.samsungexynos7420.wifi.rc \
+    init.sec.boot.sh \
     init.wifi.rc \
     ueventd.samsungexynos7420.rc
 

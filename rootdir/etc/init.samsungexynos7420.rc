@@ -1,14 +1,13 @@
-
 import init.samsungexynos7420.usb.rc
-import init.wifi.rc
-import init.baseband.rc
+import init.samsungexynos7420.wifi.rc
+import init.samsungexynos7420.gps.rc
+import init.samsung.rc
 import init.carrier.rc
 
 on early-init
     mount debugfs /sys/kernel/debug /sys/kernel/debug
 
 on init
-    start watchdogd
     mkdir /preload 0771 system system
 
     # Support legacy paths
@@ -17,9 +16,10 @@ on init
 
     symlink /data/app /factory
 
-#Private Mode
-    mkdir /mnt/shell/privatemode 0700 system system
-    mkdir /storage/Private 0000 system system
+    symlink /dev/block/platform/15570000.ufs/by-name/STEADY /dev/block/steady
+    symlink /dev/block/platform/15570000.ufs/by-name/PERSISTENT /dev/block/persistent
+
+    mkdir /efs 0771 radio system
 
 on post-fs
     # Increase max readahead size to 256 KB
@@ -102,6 +102,7 @@ on post-fs-data
     chown system audio /sys/class/earsmart/control/route_value
     chown system audio /sys/class/earsmart/control/veq_control_set
     chown system audio /sys/class/earsmart/control/extra_volume
+    chown system audio /sys/class/earsmart/control/always_stream_fs_on
 
 # permission for CHARGING
    chown system radio /sys/class/power_supply/battery/batt_discharging_check
@@ -114,7 +115,7 @@ on post-fs-data
 #Private Mode
     mkdir /data/privatemode 0770 system system
     chown system system /data/privatemode
-    restorecon /data/privatemode
+    #restorecon /data/privatemode
 
 #NFC : create data/nfc for nv storage
     mkdir /data/nfc 0700 nfc nfc
@@ -341,6 +342,43 @@ on boot
     chown system system /sys/devices/system/cpu/cpu6/online
     chown system system /sys/devices/system/cpu/cpu7/online
 
+    # Turn on CPU cores
+    write /sys/power/enable_dm_hotplug 0
+    write /sys/devices/system/cpu/cpu1/online 1
+    write /sys/devices/system/cpu/cpu2/online 1
+    write /sys/devices/system/cpu/cpu3/online 1
+    write /sys/devices/system/cpu/cpu4/online 1
+    write /sys/devices/system/cpu/cpu5/online 1
+    write /sys/devices/system/cpu/cpu6/online 1
+    write /sys/devices/system/cpu/cpu7/online 1
+
+    # Configure interactive
+    write /sys/devices/system/cpu/cpu0/cpufreq/interactive/timer_rate 20000
+    write /sys/devices/system/cpu/cpu0/cpufreq/interactive/timer_slack 20000
+    write /sys/devices/system/cpu/cpu0/cpufreq/interactive/min_sample_time 40000
+    write /sys/devices/system/cpu/cpu0/cpufreq/interactive/hispeed_freq 900000
+    write /sys/devices/system/cpu/cpu0/cpufreq/interactive/go_hispeed_load 85
+    write /sys/devices/system/cpu/cpu0/cpufreq/interactive/target_loads 75
+    write /sys/devices/system/cpu/cpu0/cpufreq/interactive/above_hispeed_delay 19000
+    write /sys/devices/system/cpu/cpu0/cpufreq/interactive/boostpulse_duration 40000
+    write /sys/devices/system/cpu/cpu0/cpufreq/interactive/max_freq_hysteresis 100000
+    write /sys/devices/system/cpu/cpu4/cpufreq/interactive/timer_rate 20000
+    write /sys/devices/system/cpu/cpu4/cpufreq/interactive/timer_slack 20000
+    write /sys/devices/system/cpu/cpu4/cpufreq/interactive/min_sample_time 40000
+    write /sys/devices/system/cpu/cpu4/cpufreq/interactive/hispeed_freq 1200000
+    write /sys/devices/system/cpu/cpu4/cpufreq/interactive/go_hispeed_load 89
+    write /sys/devices/system/cpu/cpu4/cpufreq/interactive/target_loads "65 1500000:75"
+    write /sys/devices/system/cpu/cpu4/cpufreq/interactive/above_hispeed_delay "59000 1300000:39000 1700000:19000"
+    write /sys/devices/system/cpu/cpu4/cpufreq/interactive/boostpulse_duration 40000
+    write /sys/devices/system/cpu/cpu4/cpufreq/interactive/max_freq_hysteresis 100000
+    # io_is_busy
+    write /sys/devices/system/cpu/cpu0/cpufreq/interactive/io_is_busy 1
+    write /sys/devices/system/cpu/cpu4/cpufreq/interactive/io_is_busy 1
+    write /sys/devices/virtual/sec/sec_slow/io_is_busy 1
+    # boost during boot
+    write /sys/devices/system/cpu/cpu0/cpufreq/scaling_min_freq 1500000
+    write /sys/devices/system/cpu/cpu4/cpufreq/scaling_min_freq 2100000
+
     # CPU Idle
     chown system system /sys/module/cpuidle_exynos64/parameters/enable_mask
 
@@ -350,6 +388,9 @@ on boot
 # RTC logging daemon
     chmod 0770 /system/bin/rtc_log.sh
     chown system system /system/bin/rtc_log.sh
+
+    # Radio
+    chmod 0644 /proc/cmdline
 
     chown bluetooth net_bt_stack /dev/ttySAC4
     chmod 0660 /dev/ttySAC4
@@ -363,6 +404,10 @@ on boot
 # sem_daemon permission
     chown system system /efs/sec_efs/ssp_data
     chmod 0644 /efs/sec_efs/ssp_data
+
+# Switch Device
+    chown system radio /sys/class/sec/switch/afc_disable
+    chown system radio /sys/class/sec/switch/wireless
 
 # DRK permission
     mkdir /efs/prov 0770 radio system
@@ -438,6 +483,10 @@ on fs
     chown system system /sbfs
     chmod 0755 /sbfs
 
+# MTP permission
+    chmod 0660 /dev/usb_mtp_gadget
+    chown system mtp /dev/usb_mtp_gadget
+
 # Permissions for TouchScreen
     chown system radio /sys/class/sec/tsp/cmd
     chown system system /sys/class/sec/tsp/input/enabled
@@ -447,9 +496,10 @@ on fs
     chown system radio /sys/class/sec/sec_touchkey/touchkey_firm_update
     chown system radio /sys/class/sec/sec_touchkey/touch_sensitivity
     chown system radio /sys/class/sec/sec_touchkey/glove_mode
-    chown system radio /sys/class/sec/sec_touchkey/flip_mode
     chown system radio /sys/class/sec/sec_touchkey/keyboard_mode
+    chown system radio /sys/class/sec/sec_touchkey/flip_mode
     chown system radio /sys/class/sec/sec_touchkey/boost_level
+    chown system radio /sys/class/sec/sec_touchkey/tkey_int_ctrl
     chown system system /sys/class/sec/sec_touchkey/input/enabled
 
 # Permissions for gpio_keys
@@ -476,11 +526,8 @@ on fs
     chmod 0660 /sys/class/backlight/panel/brightness
     chown system system /sys/class/backlight/panel/brightness
     chown system system /sys/class/backlight/panel/auto_brightness
-
-# Permissions for LCD HMT
-    chown system system /sys/class/lcd/panel/hmt_on
-    chown system system /sys/class/lcd/panel/hmt_bright
-    chown system system /sys/class/mdnie/mdnie/hmt_color_temperature
+    chown system system /sys/class/backlight/panel/auto_brightness_level
+    chown system system /sys/class/backlight/panel/brightness_step
 
 # Permissions for LCD
     chown system radio /sys/class/lcd/panel/manufacture_code
@@ -488,6 +535,14 @@ on fs
     chown system system /sys/class/lcd/panel/siop_enable
     chown system system /sys/class/lcd/panel/temperature
     chown system media_rw /sys/class/backlight/panel/weakness_hbm_comp
+
+# Permissions for LCD HMT
+    chown system system /sys/class/lcd/panel/hmt_on
+    chown system system /sys/class/lcd/panel/hmt_bright
+    chown system system /sys/class/mdnie/mdnie/hmt_color_temperature
+
+# Permissions for LCD ALPM
+    chown system system /sys/class/lcd/panel/alpm
 
 # Permissions for MDNIE
     chown system media_rw /sys/class/mdnie/mdnie/mode
@@ -627,6 +682,8 @@ on fs
     chown system radio /sys/class/sensors/grip_sensor/temp
     chown system radio /sys/class/sensors/grip_sensor/temp_cal
     chown system radio /sys/class/sensors/grip_sensor/capmain
+    chown system radio /sys/class/sensors/grip_sensor/select_reg
+    chown system radio /sys/class/sensors/grip_sensor/rw_reg_val
 
 # SensorHub
     chown system radio /sys/class/sensors/ssp_sensor/enable
@@ -637,6 +694,7 @@ on fs
     chown system radio /sys/class/sensors/ssp_sensor/mcu_update
     chown system radio /sys/class/sensors/ssp_sensor/mcu_sleep_test
     chown system radio /sys/class/sensors/ssp_sensor/ori_poll_delay
+    chown system radio /sys/class/sensors/ssp_sensor/mag_poll_delay
 
 # Sensorhub IIO
     chown system radio /sys/class/sensors/ssp_sensor/accel_poll_delay
@@ -655,6 +713,8 @@ on fs
     chown system radio /sys/class/sensors/ssp_sensor/uncal_gyro_poll_delay
     chown system radio /sys/class/sensors/ssp_sensor/interrupt_gyro_poll_delay
     chown system radio /sys/class/sensors/ssp_sensor/tilt_poll_delay
+    chown system radio /sys/class/sensors/ssp_sensor/pickup_poll_delay
+    chown system radio /sys/class/sensors/ssp_sensor/motor_test_poll_delay
     chown system radio /sys/class/sensors/ssp_sensor/ssp_flush
     chown system radio /sys/class/sensors/ssp_sensor/int_gyro_enable
     chmod 0600 /dev/batch_io
@@ -683,14 +743,10 @@ on fs
     chown system system /dev/network_throughput
 
 # TSP & Pressure Sensor
+    chown system system /sys/class/sec/tsp/brane
+    chmod 0660 /sys/class/sec/tsp/brane
     chown system system /dev/i2c-7
     chmod 0660 /dev/i2c-7
-
-# DIAG
-service DIAG-daemon /system/bin/diagexe
-    class main
-    user root
-    group system radio inet net_raw
 
 # ARGOSD
 service argos-daemon /system/bin/argosd
@@ -698,39 +754,17 @@ service argos-daemon /system/bin/argosd
     user system
     group system radio
 
-# emergency firmware update
-on firmware
-    mount_all /fstab.samsungexynos7420.fwup
-    class_start firmware_update
-
 service prepare_param /system/bin/prepare_param.sh /dev/block/platform/15570000.ufs/by-name/PARAM
     class core
     user root
     group root
-    seclabel u:r:prepare_param:s0
+    #seclabel u:r:prepare_param:s0
     oneshot
-
-#Private Mode
-service privatemode /system/bin/sdcard -r /data/privatemode /mnt/shell/privatemode 1000 1000
-    class late_start
-    oneshot
-
-# SENSOR FRAMEWORK : starts fingerprintService
-service vcsFPService /system/bin/vcsFPService
-    class late_start
-    user system
-    group system
-
-# BIO FRAMEWORK : starts bio auth service
-service bauthserver /system/bin/bauthserver
-    class late_start
-    user system
-    group system
 
 # Set watchdog timer to 30 seconds and pet it every 10 seconds to get a 20 second margin
 service watchdogd /sbin/watchdogd 10 20
     class core
-    seclabel u:r:watchdogd:s0
+    #seclabel u:r:watchdogd:s0
 
 # on userdebug and eng builds, enable kgdb on the serial console
 on property:ro.debuggable=1
@@ -741,11 +775,17 @@ on property:ro.debuggable=1
 on property:sys.boot_completed=1
     write /proc/sys/vm/dirty_bytes 62914560
     write /proc/sys/vm/dirty_background_bytes 20971520
-
-# Activate Background Compaction
-on property:sys.sysctl.compact_memory=1
-    write /proc/sys/vm/compact_memory 1
-    setprop sys.sysctl.compact_memory=0
+    write /sys/devices/system/cpu/cpu1/online 1
+    write /sys/devices/system/cpu/cpu2/online 1
+    write /sys/devices/system/cpu/cpu3/online 1
+    write /sys/devices/system/cpu/cpu4/online 1
+    write /sys/devices/system/cpu/cpu5/online 1
+    write /sys/devices/system/cpu/cpu6/online 1
+    write /sys/devices/system/cpu/cpu7/online 1
+    write /sys/devices/system/cpu/cpu0/cpufreq/scaling_min_freq 400000
+    write /sys/devices/system/cpu/cpu4/cpufreq/scaling_min_freq 800000
+    write /sys/power/enable_dm_hotplug 1
+    start fstrim-service
 
 #
 # start netmgrd
@@ -763,9 +803,6 @@ on property:ro.use_data_netmgrd=true
 
 # LPM
 on property:ro.bootmode=charger
-    mount ext4 /dev/block/platform/15570000.ufs/by-name/SYSTEM /system support_scfs wait ro
-
-on property:ro.bootmode=charger
     class_start sec-charger
 
 service lpm /system/bin/lpm
@@ -778,40 +815,6 @@ service fwup /sbin/ffu -a
     user root
     group root
     critical
-    oneshot
-
-# SecEDS
-service TvoutService_C /system/bin/bintvoutservice
-    class main
-    user system
-    group graphics
-on property:ro.SecEDS.enable=false
-    stop TvoutService_C
-
-# Secure Storage startup
-service secure_storage /system/bin/secure_storage_daemon
-    class core
-    user system
-    group system
-    disabled
-
-on property:ro.securestorage.support=true
-    mkdir /dev/.secure_storage
-    chmod 0711 /dev/.secure_storage
-    chown system system /dev/.secure_storage
-    restorecon -R /dev/.secure_storage
-    start secure_storage
-
-on property:ro.securestorage.knox=true
-    mkdir /dev/.secure_storage
-    chmod 0711 /dev/.secure_storage
-    chown system system /dev/.secure_storage
-    restorecon -R /dev/.secure_storage
-    start secure_storage
-
-# umount service
-service umount_service /system/bin/umount /preload
-    disabled
     oneshot
 
 # Support Preload install apks
@@ -831,14 +834,6 @@ service cs_service /system/bin/cs
 on property:sys.mobicoredaemon.enable=true
     start cs_service
 
-# SSWAP
-service swapon /sbin/sswap -s -f 1280
-    class core
-    user root
-    group root
-    seclabel u:r:sswap:s0
-    oneshot
-
 # IPSec for VOLTE
 service ipsec-daemon /system/bin/IPSecService
     class main
@@ -851,7 +846,7 @@ service rtc_log /system/bin/rtc_log.sh
     class main
     user system
     group system
-    seclabel u:r:rtc_log:s0
+    #seclabel u:r:rtc_log:s0
     oneshot
 
 # sem_daemon
@@ -868,6 +863,9 @@ on property:sys.boot_completed=1
 on property:security.semdaemonfinish=1
     stop sem_daemon
 
+# IPSec for VOLTE
+    chown root system /dev/socket
+    chmod 0775 /dev/socket
 
 # On-Board DM
 service DMM-deamon /system/bin/dmm_v2
