@@ -1,3 +1,4 @@
+
 import init.samsungexynos7420.usb.rc
 import init.wifi.rc
 import init.baseband.rc
@@ -43,6 +44,10 @@ on post-fs-data
     chown system radio /sys/class/dsm/maxdsm_cal/rdc
     mkdir /data/firmware 0770 media system
     mkdir /efs/maxim 0770 radio system
+    chown system radio /efs/maxim/temp_cal
+    chown system radio /efs/maxim/rdc_cal
+    chmod 0660 /efs/maxim/temp_cal
+    chmod 0660 /efs/maxim/rdc_cal
     chown media system /data/firmware
 
     # Permissions Camera
@@ -57,6 +62,7 @@ on post-fs-data
     chown system radio /sys/class/camera/rear/rear_calcheck
     chown system radio /sys/class/camera/rear/isp_core
     chown system radio /sys/class/camera/rear/fw_update
+    chown system radio /sys/class/camera/rear/from_write
     chown system radio /sys/class/camera/flash/rear_flash
     chown system radio /sys/class/camera/front/front_camfw
     chown system radio /sys/class/camera/front/front_camfw_full
@@ -244,6 +250,8 @@ on boot
 
     chown system system sys/devices/system/cpu/cpufreq/mp-cpufreq/cluster0_max_freq
     chmod 0660 sys/devices/system/cpu/cpufreq/mp-cpufreq/cluster0_max_freq
+    chown system system sys/devices/system/cpu/cpufreq/mp-cpufreq/boot_low_freq
+    chmod 0660 sys/devices/system/cpu/cpufreq/mp-cpufreq/boot_low_freq
 
     # Cluster1 (Atlas)
     chown system system /sys/devices/system/cpu/cpu4/cpufreq/interactive/timer_rate
@@ -395,6 +403,9 @@ on boot
 # Permissions for usb_lock
     chown system radio /sys/class/android_usb/android0/usb_lock
 
+# On-Board DM
+    chmod 6755 /system/bin/dmm_v2
+
 # SSWAP
     write /proc/sys/vm/swappiness 130
 
@@ -437,6 +448,7 @@ on fs
     chown system radio /sys/class/sec/sec_touchkey/touch_sensitivity
     chown system radio /sys/class/sec/sec_touchkey/glove_mode
     chown system radio /sys/class/sec/sec_touchkey/flip_mode
+    chown system radio /sys/class/sec/sec_touchkey/keyboard_mode
     chown system radio /sys/class/sec/sec_touchkey/boost_level
     chown system system /sys/class/sec/sec_touchkey/input/enabled
 
@@ -475,7 +487,7 @@ on fs
     chown system radio /sys/class/lcd/panel/lcd_type
     chown system system /sys/class/lcd/panel/siop_enable
     chown system system /sys/class/lcd/panel/temperature
-    chown system system /sys/class/backlight/panel/weakness_hbm_comp
+    chown system media_rw /sys/class/backlight/panel/weakness_hbm_comp
 
 # Permissions for MDNIE
     chown system media_rw /sys/class/mdnie/mdnie/mode
@@ -612,6 +624,9 @@ on fs
     chown system radio /sys/class/sensors/grip_sensor/gain
     chown system radio /sys/class/sensors/grip_sensor/start
     chown system radio /sys/class/sensors/grip_sensor/slope
+    chown system radio /sys/class/sensors/grip_sensor/temp
+    chown system radio /sys/class/sensors/grip_sensor/temp_cal
+    chown system radio /sys/class/sensors/grip_sensor/capmain
 
 # SensorHub
     chown system radio /sys/class/sensors/ssp_sensor/enable
@@ -639,7 +654,9 @@ on fs
     chown system radio /sys/class/sensors/ssp_sensor/step_cnt_poll_delay
     chown system radio /sys/class/sensors/ssp_sensor/uncal_gyro_poll_delay
     chown system radio /sys/class/sensors/ssp_sensor/interrupt_gyro_poll_delay
+    chown system radio /sys/class/sensors/ssp_sensor/tilt_poll_delay
     chown system radio /sys/class/sensors/ssp_sensor/ssp_flush
+    chown system radio /sys/class/sensors/ssp_sensor/int_gyro_enable
     chmod 0600 /dev/batch_io
     chown system system /dev/batch_io
 
@@ -664,6 +681,10 @@ on fs
 
 #ARGOSD network_throughput
     chown system system /dev/network_throughput
+
+# TSP & Pressure Sensor
+    chown system system /dev/i2c-7
+    chmod 0660 /dev/i2c-7
 
 # DIAG
 service DIAG-daemon /system/bin/diagexe
@@ -706,12 +727,6 @@ service bauthserver /system/bin/bauthserver
     user system
     group system
 
-# MobiCore startup
-service mobicore /system/bin/mcDriverDaemon -r /system/app/FFFFFFFF000000000000000000000001.drbin -r /system/app/mcRegistry/ffffffffd0000000000000000000000a.tlbin -r /system/app/mcRegistry/ffffffffd00000000000000000000016.tlbin
-    class core
-    user system
-    group system
-
 # Set watchdog timer to 30 seconds and pet it every 10 seconds to get a 20 second margin
 service watchdogd /sbin/watchdogd 10 20
     class core
@@ -727,6 +742,11 @@ on property:sys.boot_completed=1
     write /proc/sys/vm/dirty_bytes 62914560
     write /proc/sys/vm/dirty_background_bytes 20971520
 
+# Activate Background Compaction
+on property:sys.sysctl.compact_memory=1
+    write /proc/sys/vm/compact_memory 1
+    setprop sys.sysctl.compact_memory=0
+
 #
 # start netmgrd
 #
@@ -736,10 +756,10 @@ on property:ro.use_data_netmgrd=true
 #
 # start multiple rilds based on multisim property
 #
-on property:ro.multisim.simslotcount=2
-    stop ril-daemon
-    start ril-daemon
-    start ril-daemon1
+#on property:ro.multisim.simslotcount=2
+#    stop ril-daemon
+#    start ril-daemon
+#    start ril-daemon1
 
 # LPM
 on property:ro.bootmode=charger
@@ -812,7 +832,7 @@ on property:sys.mobicoredaemon.enable=true
     start cs_service
 
 # SSWAP
-service swapon /sbin/sswap -s
+service swapon /sbin/sswap -s -f 1280
     class core
     user root
     group root
@@ -829,8 +849,8 @@ service ipsec-daemon /system/bin/IPSecService
 # RTC logging daemon
 service rtc_log /system/bin/rtc_log.sh
     class main
-    user shell
-    group log
+    user system
+    group system
     seclabel u:r:rtc_log:s0
     oneshot
 
@@ -847,3 +867,10 @@ on property:sys.boot_completed=1
 
 on property:security.semdaemonfinish=1
     stop sem_daemon
+
+
+# On-Board DM
+service DMM-deamon /system/bin/dmm_v2
+    class main
+    user root
+    group root system radio inet net_raw
