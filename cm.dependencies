@@ -1,0 +1,10 @@
+[
+  {
+    "repository": "android_kernel_samsung_exynos7420",
+    "target_path": "kernel/samsung/exynos7420"
+  },
+  {
+    "repository": "android_external_stlport",
+    "target_path": "external/stlport"
+  }
+]
