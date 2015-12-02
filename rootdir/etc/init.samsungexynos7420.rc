@@ -8,6 +8,8 @@ on early-init
     mount debugfs /sys/kernel/debug /sys/kernel/debug
 
 on init
+    export LD_PRELOAD libsamsung_symbols.so
+
     mkdir /preload 0771 system system
 
     # Support legacy paths
